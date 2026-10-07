@@ -1,0 +1,786 @@
+<title>Guide AD &amp; GPO — LepalX / VetoX</title>
+<style>
+  /* Layout: two-pane console — a rubrique tree on the left (à la Server Manager),
+     a scrolling detail pane on the right, with a global GUI/Core mode switch. */
+  :root{
+    --bg:#eef1f6; --surface:#ffffff; --surface-2:#e4e9f0; --rail:#e4e9f0;
+    --fg:#101826; --muted:#5b6472; --border:#c9d2de;
+    --accent:#a8690c; --accent-fg:#ffffff; --accent-soft:#f3e2c6;
+    --good:#177a5e; --good-bg:#dcf3ea;
+    --bad:#b23b30; --bad-bg:#fbe3e0;
+    --code-bg:#101826; --code-fg:#e8ecf1;
+    --font-display:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --font-body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d1420; --surface:#141d2b; --surface-2:#1b2636; --rail:#101826;
+      --fg:#e8ecf1; --muted:#93a1b0; --border:#2a3648;
+      --accent:#f2b341; --accent-fg:#161005; --accent-soft:#2c2210;
+      --good:#4fd8a9; --good-bg:#123327;
+      --bad:#ff6b61; --bad-bg:#3a1815;
+      --code-bg:#080c13; --code-fg:#d9e2ec;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d1420; --surface:#141d2b; --surface-2:#1b2636; --rail:#101826;
+    --fg:#e8ecf1; --muted:#93a1b0; --border:#2a3648;
+    --accent:#f2b341; --accent-fg:#161005; --accent-soft:#2c2210;
+    --good:#4fd8a9; --good-bg:#123327;
+    --bad:#ff6b61; --bad-bg:#3a1815;
+    --code-bg:#080c13; --code-fg:#d9e2ec;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--fg); font-family:var(--font-body);
+    display:flex; flex-direction:column;
+  }
+  a{color:var(--accent)}
+  svg{max-width:100%; height:auto; display:block}
+  figure{margin:18px 0}
+  figcaption{font-size:0.82rem; color:var(--muted); margin-top:8px; text-align:center}
+
+  header.app{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:14px 20px; padding-top:calc(14px + env(safe-area-inset-top, 0px));
+    border-bottom:1px solid var(--border); background:var(--surface);
+    flex-wrap:wrap; position:sticky; top:env(safe-area-inset-top, 0px); z-index:15;
+  }
+  .brand{font-family:var(--font-display); font-weight:600; font-size:1rem}
+  .brand .dim{color:var(--muted); font-weight:400}
+  .header-right{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+
+  .mode-switch{
+    display:inline-flex; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:999px; padding:3px; gap:2px;
+  }
+  .mode-btn{
+    font-family:var(--font-display); font-size:0.78rem; font-weight:600;
+    border:none; background:transparent; color:var(--muted);
+    border-radius:999px; padding:7px 14px; cursor:pointer; white-space:nowrap;
+  }
+  .mode-btn.active{background:var(--accent); color:var(--accent-fg)}
+
+  .toc-toggle{
+    display:none; font-family:var(--font-display); font-size:0.82rem; font-weight:600;
+    background:var(--surface-2); border:1px solid var(--border); color:var(--fg);
+    border-radius:8px; padding:8px 12px; cursor:pointer;
+  }
+
+  .shell{
+    flex:1; display:flex; min-height:0;
+    max-width:1180px; width:100%; margin:0 auto;
+  }
+
+  nav.rail{
+    flex:0 0 250px; background:var(--rail); border-right:1px solid var(--border);
+    padding:18px 12px; overflow-y:auto;
+  }
+  .rail-group{margin-bottom:18px}
+  .rail-label{
+    font-family:var(--font-display); font-size:0.68rem; letter-spacing:0.09em;
+    text-transform:uppercase; color:var(--muted); padding:0 10px; margin-bottom:6px;
+  }
+  .rail-btn{
+    display:flex; align-items:center; gap:9px; width:100%; text-align:left;
+    background:transparent; border:none; border-radius:8px; padding:9px 10px;
+    font-family:var(--font-body); font-size:0.92rem; color:var(--fg); cursor:pointer;
+    line-height:1.3;
+  }
+  .rail-btn .num{
+    font-family:var(--font-display); font-size:0.72rem; color:var(--muted);
+    flex:0 0 auto; width:1.6em;
+  }
+  .rail-btn .modes{margin-left:auto; display:flex; gap:3px; flex:0 0 auto}
+  .rail-dot{width:7px; height:7px; border-radius:50%; background:var(--border)}
+  .rail-dot.on{background:var(--accent)}
+  .rail-btn:hover{background:var(--surface-2)}
+  .rail-btn.active{background:var(--accent-soft); color:var(--fg); font-weight:600}
+  .rail-btn.active .num{color:var(--accent)}
+
+  main.content{
+    flex:1; min-width:0; overflow-y:auto;
+    padding:32px clamp(18px,4vw,44px) 60px;
+  }
+  .section{max-width:74ch}
+  .section .eyebrow{
+    font-family:var(--font-display); font-size:0.75rem; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--accent); margin-bottom:8px;
+  }
+  .section h1{
+    font-family:var(--font-display); font-size:clamp(1.5rem,4vw,2rem);
+    font-weight:600; text-wrap:balance; margin:0 0 10px;
+  }
+  .avail-row{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px}
+  .avail-chip{
+    font-family:var(--font-display); font-size:0.72rem; font-weight:600;
+    border-radius:999px; padding:4px 10px; border:1px solid var(--border);
+    color:var(--muted); background:var(--surface-2);
+  }
+  .avail-chip.yes{color:var(--good); border-color:var(--good); background:var(--good-bg)}
+
+  .section p{line-height:1.65; margin:0 0 16px}
+  .section h2{
+    font-family:var(--font-display); font-size:1.05rem; font-weight:600;
+    margin:30px 0 12px; padding-top:20px; border-top:1px solid var(--border);
+    display:flex; align-items:center; gap:10px;
+  }
+  .h2-tag{
+    font-size:0.68rem; letter-spacing:0.04em; padding:2px 8px; border-radius:999px;
+    font-family:var(--font-display); font-weight:700;
+  }
+  .h2-tag.gui{background:var(--accent-soft); color:var(--accent)}
+  .h2-tag.core{background:var(--surface-2); color:var(--fg); border:1px solid var(--border)}
+
+  .section ul, .section ol{margin:0 0 16px; padding-left:1.3em; line-height:1.65}
+  .section li{margin-bottom:7px}
+  .section ol{counter-reset:step}
+  .callout{
+    background:var(--surface-2); border:1px solid var(--border); border-left:3px solid var(--accent);
+    border-radius:8px; padding:13px 16px; margin:18px 0; font-size:0.92rem; line-height:1.55;
+  }
+  .callout strong{font-family:var(--font-display); font-size:0.78rem; text-transform:uppercase;
+    letter-spacing:0.05em; color:var(--accent); display:block; margin-bottom:5px}
+  .callout.notdone{border-left-color:var(--muted)}
+  .callout.notdone strong{color:var(--muted)}
+
+  pre{
+    background:var(--code-bg); color:var(--code-fg); border-radius:10px;
+    padding:15px 16px; overflow-x:auto; margin:14px 0;
+    font-family:var(--font-display); font-size:0.82rem; line-height:1.6;
+  }
+  code{font-family:var(--font-display)}
+  p code, li code{
+    background:var(--surface-2); border:1px solid var(--border); border-radius:5px;
+    padding:1px 5px; font-size:0.85em;
+  }
+
+  table{border-collapse:collapse; width:100%; margin:16px 0; font-size:0.9rem}
+  th,td{border:1px solid var(--border); padding:8px 10px; text-align:left; vertical-align:top}
+  th{background:var(--surface-2); font-family:var(--font-display); font-size:0.78rem}
+
+  figure svg{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:10px}
+  figure text{fill:currentColor; font-family:var(--font-display)}
+  .fig-accent{fill:var(--accent); stroke:var(--accent)}
+  .fig-good{fill:var(--good); stroke:var(--good)}
+
+  /* mode gating */
+  body[data-mode="gui"] .core-only{display:none}
+  body[data-mode="core"] .gui-only{display:none}
+  body[data-mode="gui"] .core-missing{display:none}
+  body[data-mode="core"] .gui-missing{display:none}
+  .always-block{border-left-color:var(--accent)}
+
+  @media (max-width: 760px){
+    .shell{flex-direction:column}
+    nav.rail{
+      display:none; position:fixed; inset:0; z-index:20; width:auto; flex:none;
+      padding-top:calc(18px + env(safe-area-inset-top, 0px));
+      padding-bottom:calc(18px + env(safe-area-inset-bottom, 0px));
+      background:var(--rail);
+    }
+    nav.rail.open{display:block}
+    .toc-toggle{display:inline-block}
+    main.content{padding-inline:16px}
+    header.app{gap:8px}
+  }
+  [hidden]{display:none!important}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<header class="app">
+  <div class="brand">Guide<span class="dim">.</span>AD-GPO <span class="dim">// LepalX · VetoX</span></div>
+  <div class="header-right">
+    <div class="mode-switch" role="group" aria-label="Mode d'affichage">
+      <button class="mode-btn" id="btnGui" type="button">🖱 Graphique</button>
+      <button class="mode-btn" id="btnCore" type="button">⌨ Core / PowerShell</button>
+    </div>
+    <button class="toc-toggle" id="tocToggle" type="button">☰ Rubriques</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail" id="rail">
+    <div class="rail-group">
+      <div class="rail-label">Fondations</div>
+      <button class="rail-btn" data-id="overview"><span class="num">01</span>Vue d'ensemble</button>
+      <button class="rail-btn" data-id="ou"><span class="num">02</span>Arborescence OU<span class="modes"><span class="rail-dot on"></span><span class="rail-dot on"></span></span></button>
+      <button class="rail-btn" data-id="agdlp"><span class="num">03</span>Groupes AGDLP<span class="modes"><span class="rail-dot on"></span><span class="rail-dot on"></span></span></button>
+      <button class="rail-btn" data-id="users"><span class="num">04</span>Comptes utilisateurs<span class="modes"><span class="rail-dot on"></span><span class="rail-dot on"></span></span></button>
+    </div>
+    <div class="rail-group">
+      <div class="rail-label">Ressources &amp; droits</div>
+      <button class="rail-btn" data-id="shares"><span class="num">05</span>Partages &amp; NTFS<span class="modes"><span class="rail-dot on"></span><span class="rail-dot"></span></span></button>
+      <button class="rail-btn" data-id="delegation"><span class="num">06</span>Délégation<span class="modes"><span class="rail-dot on"></span><span class="rail-dot"></span></span></button>
+    </div>
+    <div class="rail-group">
+      <div class="rail-label">Stratégies &amp; interdomaine</div>
+      <button class="rail-btn" data-id="gpo"><span class="num">07</span>GPO<span class="modes"><span class="rail-dot on"></span><span class="rail-dot"></span></span></button>
+      <button class="rail-btn" data-id="core"><span class="num">08</span>Server Core<span class="modes"><span class="rail-dot"></span><span class="rail-dot on"></span></span></button>
+      <button class="rail-btn" data-id="trust"><span class="num">09</span>Relation d'approbation<span class="modes"><span class="rail-dot on"></span><span class="rail-dot"></span></span></button>
+    </div>
+    <div class="rail-group">
+      <div class="rail-label" style="margin-top:4px">Légende</div>
+      <div style="font-size:0.78rem; color:var(--muted); padding:0 10px; display:flex; align-items:center; gap:6px; margin-bottom:4px"><span class="rail-dot on"></span> réalisé dans ce TP</div>
+      <div style="font-size:0.78rem; color:var(--muted); padding:0 10px; display:flex; align-items:center; gap:6px"><span class="rail-dot"></span> non réalisé sous ce mode</div>
+    </div>
+  </nav>
+
+  <main class="content" id="content">
+
+    <section class="section" id="sec-overview">
+      <div class="eyebrow">01 — Fondations</div>
+      <h1>Vue d'ensemble</h1>
+      <p>Deux forêts Active Directory indépendantes composent ce TP : <strong>LepalX.local</strong> pour le parc d'attractions Le Pal, construite sur un serveur avec interface graphique, et <strong>VetoX.local</strong> pour la clinique vétérinaire Soubagne, construite sur un Windows Server Core (sans interface graphique). Le bouton en haut de page bascule le contenu de chaque rubrique entre la marche à suivre <strong>graphique</strong> et la marche à suivre <strong>Core / PowerShell</strong> — seul ce qui a vraiment été fait dans ce TP est affiché ; le reste est signalé comme non réalisé plutôt qu'inventé.</p>
+      <figure>
+        <svg viewBox="0 0 640 210" role="img" aria-label="Deux forêts distinctes, LepalX et VetoX, reliées ensuite par une relation d'approbation">
+          <defs>
+            <marker id="a0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <rect x="30" y="30" width="230" height="130" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="145" y="58" text-anchor="middle" font-size="13" font-weight="600">LepalX.local</text>
+          <text x="145" y="78" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">Le Pal</text>
+          <text x="145" y="102" text-anchor="middle" font-size="11">SRV-W2016-CELARIER</text>
+          <text x="145" y="122" text-anchor="middle" font-size="11">GUI · 9 OU · 13 groupes</text>
+          <text x="145" y="142" text-anchor="middle" font-size="11">5 GPO</text>
+
+          <rect x="380" y="30" width="230" height="130" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="495" y="58" text-anchor="middle" font-size="13" font-weight="600">VetoX.local</text>
+          <text x="495" y="78" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">Clinique Soubagne</text>
+          <text x="495" y="102" text-anchor="middle" font-size="11">SRV-VETO6 (Core)</text>
+          <text x="495" y="122" text-anchor="middle" font-size="11">3 OU · 3 groupes</text>
+          <text x="495" y="142" text-anchor="middle" font-size="11">horaires restreints</text>
+
+          <line x1="260" y1="95" x2="378" y2="95" stroke="currentColor" stroke-width="1.5" marker-end="url(#a0)"/>
+          <line x1="378" y1="115" x2="260" y2="115" stroke="currentColor" stroke-width="1.5" marker-end="url(#a0)"/>
+          <text x="319" y="80" text-anchor="middle" font-size="10" fill="currentColor" opacity="0.75">approbation</text>
+        </svg>
+        <figcaption>Deux forêts séparées, mises en relation par une approbation externe (rubrique 09).</figcaption>
+      </figure>
+
+      <h2>Le vocabulaire de base</h2>
+      <table>
+        <tr><th>Terme</th><th>Ce que c'est</th></tr>
+        <tr><td>Forêt</td><td>Le plus haut conteneur logique AD ; peut regrouper plusieurs domaines qui partagent un schéma et un catalogue global.</td></tr>
+        <tr><td>Domaine</td><td>Une base d'annuaire avec ses propres comptes, groupes et stratégies (ici, une forêt = un domaine).</td></tr>
+        <tr><td>Contrôleur de domaine (DC)</td><td>Le serveur qui héberge la base AD et répond aux authentifications.</td></tr>
+        <tr><td>OU</td><td>Un conteneur d'organisation : classe les objets et sert de point d'ancrage pour GPO et délégation.</td></tr>
+        <tr><td>Groupe</td><td>Un objet de sécurité qui porte des permissions et regroupe des comptes, indépendamment de leur OU.</td></tr>
+        <tr><td>GPO</td><td>Un objet de stratégie de groupe : un ensemble de paramètres appliqués automatiquement aux comptes/ordinateurs d'un périmètre.</td></tr>
+      </table>
+      <div class="callout"><strong>À retenir</strong>Une OU place un objet quelque part ; un groupe lui donne des droits ailleurs. Les deux notions sont indépendantes et se combinent.</div>
+    </section>
+
+    <section class="section" id="sec-ou" hidden>
+      <div class="eyebrow">02 — Fondations</div>
+      <h1>Arborescence OU</h1>
+      <div class="avail-row"><span class="avail-chip yes">✓ Graphique (LepalX)</span><span class="avail-chip yes">✓ Core / PowerShell (VetoX)</span></div>
+      <p>L'arborescence d'OU de LepalX reflète l'organisation réelle du parc : une direction et six pôles, chacun avec ses employés placés dans la sous-OU correspondante.</p>
+      <figure>
+        <svg viewBox="0 0 640 260" role="img" aria-label="Arborescence des unités d'organisation de LepalX, avec un tronc domaine et sept OU de premier niveau">
+          <line x1="320" y1="40" x2="320" y2="60" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="230" y="8" width="180" height="32" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="320" y="29" text-anchor="middle" font-size="12" font-weight="600">DC=Lepal6,DC=local</text>
+
+          <line x1="60" y1="60" x2="580" y2="60" stroke="currentColor" stroke-width="1.5"/>
+          <g font-size="10.5">
+            <g transform="translate(60,0)">
+              <line x1="0" y1="60" x2="0" y2="88" stroke="currentColor" stroke-width="1.5"/>
+              <rect x="-52" y="88" width="104" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="0" y="107" text-anchor="middle">OU_Direction</text>
+            </g>
+            <g transform="translate(140,0)">
+              <line x1="0" y1="60" x2="0" y2="88" stroke="currentColor" stroke-width="1.5"/>
+              <rect x="-56" y="88" width="112" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="0" y="107" text-anchor="middle">OU_Exploitation</text>
+            </g>
+            <g transform="translate(220,0)">
+              <line x1="0" y1="60" x2="0" y2="88" stroke="currentColor" stroke-width="1.5"/>
+              <rect x="-58" y="88" width="116" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="0" y="107" text-anchor="middle">OU_Restauration</text>
+            </g>
+            <g transform="translate(320,0)">
+              <line x1="0" y1="60" x2="0" y2="88" stroke="currentColor" stroke-width="1.5"/>
+              <rect x="-54" y="88" width="108" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="0" y="107" text-anchor="middle">OU_Technique</text>
+            </g>
+            <g transform="translate(420,0)">
+              <line x1="0" y1="60" x2="0" y2="88" stroke="currentColor" stroke-width="1.5"/>
+              <rect x="-58" y="88" width="116" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="0" y="107" text-anchor="middle">OU_Hébergement</text>
+            </g>
+            <g transform="translate(500,0)">
+              <line x1="0" y1="60" x2="0" y2="88" stroke="currentColor" stroke-width="1.5"/>
+              <rect x="-36" y="88" width="72" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="0" y="107" text-anchor="middle">OU_RH</text>
+            </g>
+            <g transform="translate(580,0)">
+              <line x1="0" y1="60" x2="0" y2="88" stroke="currentColor" stroke-width="1.5"/>
+              <rect x="-52" y="88" width="104" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="0" y="107" text-anchor="middle">OU_Boutiques</text>
+            </g>
+          </g>
+
+          <line x1="220" y1="118" x2="220" y2="140" stroke="currentColor" stroke-width="1.3" opacity="0.6"/>
+          <rect x="170" y="140" width="100" height="26" rx="5" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.85"/>
+          <text x="220" y="157" text-anchor="middle" font-size="10">Utilisateurs</text>
+
+          <line x1="320" y1="118" x2="320" y2="140" stroke="currentColor" stroke-width="1.3" opacity="0.6"/>
+          <rect x="270" y="140" width="100" height="26" rx="5" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.85"/>
+          <text x="320" y="157" text-anchor="middle" font-size="10">Ordinateurs</text>
+
+          <text x="320" y="200" text-anchor="middle" font-size="10.5" opacity="0.75">Chaque pôle contient ses employés ; OU_Ordinateurs reçoit les postes (cible de la GPO admin local).</text>
+        </svg>
+        <figcaption>Tronc du domaine, sept OU de premier niveau, sous-OU Utilisateurs / Ordinateurs par pôle.</figcaption>
+      </figure>
+
+      <h2><span class="h2-tag gui">Graphique</span> Créer une OU — Utilisateurs et ordinateurs AD</h2>
+      <ol class="gui-only">
+        <li>Ouvrir <strong>dsa.msc</strong> (Utilisateurs et ordinateurs Active Directory) sur le contrôleur de domaine</li>
+        <li>Clic droit sur le domaine (ou l'OU parente) → <strong>Nouveau</strong> → <strong>Unité d'organisation</strong></li>
+        <li>Saisir le nom (ex : <code>OU_Direction</code>)</li>
+        <li>Laisser coché <strong>« Protéger le conteneur contre une suppression accidentelle »</strong></li>
+        <li>Valider, puis répéter pour chaque pôle et chaque sous-OU (Utilisateurs, Ordinateurs)</li>
+      </ol>
+
+      <h2><span class="h2-tag core">Core</span> Créer une OU — PowerShell</h2>
+      <pre class="core-only">New-ADOrganizationalUnit -Name "OU_Veterinaires" `
+    -Path "DC=Veto6,DC=local" `
+    -ProtectedFromAccidentalDeletion $true
+
+New-ADOrganizationalUnit -Name "OU_Assistants" -Path "DC=Veto6,DC=local" -ProtectedFromAccidentalDeletion $true
+New-ADOrganizationalUnit -Name "OU_Groupes"    -Path "DC=Veto6,DC=local" -ProtectedFromAccidentalDeletion $true
+
+# Vérifier
+Get-ADOrganizationalUnit -Filter * | Select-Object Name,DistinguishedName</pre>
+
+      <div class="callout"><strong>Pourquoi -ProtectedFromAccidentalDeletion</strong>Une OU supprimée par erreur emporte tous ses objets et casse les GPO qui y étaient liées (elles deviennent orphelines dans SYSVOL). Ce paramètre bloque la suppression tant qu'il n'est pas explicitement levé.</div>
+    </section>
+
+    <section class="section" id="sec-agdlp" hidden>
+      <div class="eyebrow">03 — Fondations</div>
+      <h1>Groupes AGDLP</h1>
+      <div class="avail-row"><span class="avail-chip yes">✓ Graphique (LepalX)</span><span class="avail-chip yes">✓ Core / PowerShell (VetoX)</span></div>
+      <p>AGDLP est la méthode standard pour attribuer des permissions sans jamais mettre un compte utilisateur directement sur une ressource : <strong>A</strong>ccount → <strong>G</strong>lobal group → <strong>D</strong>omain <strong>L</strong>ocal group → <strong>P</strong>ermission.</p>
+      <figure>
+        <svg viewBox="0 0 640 140" role="img" aria-label="Flux AGDLP : un compte est membre d'un groupe global, lui-même membre d'un groupe local de domaine, qui porte la permission sur la ressource">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <g font-size="11.5">
+            <rect x="10" y="40" width="120" height="46" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="70" y="59" text-anchor="middle" font-weight="600">Compte</text>
+            <text x="70" y="75" text-anchor="middle" font-size="10" opacity="0.75">ex : avial</text>
+
+            <line x1="130" y1="63" x2="178" y2="63" stroke="currentColor" stroke-width="1.5" marker-end="url(#a1)"/>
+            <text x="154" y="53" text-anchor="middle" font-size="9.5" opacity="0.75">membre</text>
+
+            <rect x="180" y="40" width="120" height="46" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="240" y="59" text-anchor="middle" font-weight="600">GG</text>
+            <text x="240" y="75" text-anchor="middle" font-size="10" opacity="0.75">GG_Assistants</text>
+
+            <line x1="300" y1="63" x2="348" y2="63" stroke="currentColor" stroke-width="1.5" marker-end="url(#a1)"/>
+            <text x="324" y="53" text-anchor="middle" font-size="9.5" opacity="0.75">membre</text>
+
+            <rect x="350" y="40" width="120" height="46" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="410" y="59" text-anchor="middle" font-weight="600">GDL</text>
+            <text x="410" y="75" text-anchor="middle" font-size="10" opacity="0.75">GDL_Partage_Modif</text>
+
+            <line x1="470" y1="63" x2="518" y2="63" stroke="currentColor" stroke-width="1.5" marker-end="url(#a1)"/>
+            <text x="494" y="53" text-anchor="middle" font-size="9.5" opacity="0.75">permission</text>
+
+            <rect x="520" y="40" width="110" height="46" rx="8" class="fig-accent" fill-opacity="0.12" stroke-width="1.5"/>
+            <text x="575" y="59" text-anchor="middle" font-weight="600">Ressource</text>
+            <text x="575" y="75" text-anchor="middle" font-size="10" opacity="0.75">PartageTech</text>
+          </g>
+          <text x="320" y="120" text-anchor="middle" font-size="10.5" opacity="0.75">Le compte change souvent ; la chaîne GG → GDL → permission, elle, reste stable.</text>
+        </svg>
+        <figcaption>La chaîne AGDLP : seul le maillon « compte » bouge au quotidien.</figcaption>
+      </figure>
+
+      <h2><span class="h2-tag gui">Graphique</span> Créer un groupe — Utilisateurs et ordinateurs AD</h2>
+      <ol class="gui-only">
+        <li>Clic droit sur l'OU cible (ex : OU_Groupes) → <strong>Nouveau</strong> → <strong>Groupe</strong></li>
+        <li>Nom du groupe (ex : <code>GG_Direction</code>)</li>
+        <li>Étendue du groupe : <strong>Globale</strong> pour un GG, <strong>Domaine local</strong> pour un GDL</li>
+        <li>Type de groupe : <strong>Sécurité</strong></li>
+        <li>Une fois créé, onglet <strong>Membres</strong> → Ajouter, pour y placer les comptes (dans un GG) ou d'autres groupes (dans un GDL)</li>
+      </ol>
+
+      <h2><span class="h2-tag core">Core</span> Créer un groupe — PowerShell</h2>
+      <pre class="core-only">New-ADGroup -Name "GG_Assistants" -GroupScope Global -GroupCategory Security `
+    -Path "OU=OU_Groupes,DC=Veto6,DC=local"
+
+Add-ADGroupMember -Identity "GG_Assistants" -Members "avial"</pre>
+
+      <h2>Pourquoi ne jamais court-circuiter la chaîne</h2>
+      <ul>
+        <li>Ajouter un compte directement sur une ACL de partage oblige à retoucher la ressource à chaque arrivée/départ.</li>
+        <li>Avec AGDLP, l'embauche ou le départ ne touche qu'une appartenance de groupe — la permission sur la ressource ne bouge jamais.</li>
+        <li>Un GG peut être membre de plusieurs GDL : un comité transverse (ex. GG_ComiteTechnique) s'imbrique dans les deux GG des pôles concernés.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="sec-users" hidden>
+      <div class="eyebrow">04 — Fondations</div>
+      <h1>Comptes utilisateurs</h1>
+      <div class="avail-row"><span class="avail-chip yes">✓ PowerShell, pour les deux domaines (LepalX comme VetoX)</span></div>
+      <p>Les comptes sont créés par script à partir de l'organigramme, y compris sur LepalX qui a pourtant une interface graphique : avec ~70 employés à saisir, un script data-driven évite la saisie manuelle répétitive et reste reproductible. Ce contenu est donc identique quel que soit le mode sélectionné ci-dessus.</p>
+
+      <h2>Le squelette du script</h2>
+      <pre>$Users = @(
+    @{Prenom="Aurelie"; Nom="VIAL"; OU="OU=OU_Assistants,$DomainDN"; Groups=@("GG_Assistants","GG_Personnels")}
+    # ... une ligne par employé
+)
+
+foreach ($u in $Users) {
+    $sam = New-Sam -Prenom $u.Prenom -Nom $u.Nom
+    New-ADUser -Name "$($u.Prenom) $($u.Nom)" -GivenName $u.Prenom -Surname $u.Nom `
+        -SamAccountName $sam -Path $u.OU -AccountPassword $Password `
+        -Enabled $true -ChangePasswordAtLogon $false
+    foreach ($g in $u.Groups) { Add-ADGroupMember -Identity $g -Members $sam }
+}</pre>
+      <div class="callout"><strong>Piège rencontré</strong>Deux employés homonymes (même initiale + même nom, ex. Benoît et Bertrand SOUBAGNE) génèrent le même identifiant. Toujours vérifier les collisions avant de lancer un lot, ou rattraper à la main après coup avec un <code>-SamAccountName</code> différent.</div>
+
+      <h2>Restriction horaire (logonHours) — assistants vétérinaires</h2>
+      <p>Pour les assistants, les horaires de connexion sont limités aux plages d'ouverture. L'attribut est un tableau de <strong>21 octets</strong> (168 bits, un par heure de la semaine).</p>
+      <pre>$heuresAutorisees = @{
+    1 = (8..11) + (14..18)   # Lundi
+    2 = (8..11) + (14..18)   # Mardi
+    # ...
+    6 = (8..11) + (14..15)   # Samedi
+}
+[byte[]]$logonHours = New-LogonHoursByteArray -AllowedHours $heuresAutorisees
+Set-ADUser -Identity "avial" -Replace @{logonHours = $logonHours}</pre>
+      <div class="callout"><strong>Erreur fréquente</strong>« L'attribut spécifié est déjà présent sur l'objet » signifie presque toujours que la variable n'est pas un vrai <code>byte[]</code> (souvent un <code>Object[]</code> généré sans typage explicite). Forcer le type avec <code>[byte[]]$logonHours = ...</code> résout le problème.</div>
+    </section>
+
+    <section class="section" id="sec-shares" hidden>
+      <div class="eyebrow">05 — Ressources &amp; droits</div>
+      <h1>Partages &amp; NTFS</h1>
+      <div class="avail-row"><span class="avail-chip yes">✓ Graphique (LepalX)</span><span class="avail-chip">✕ Non réalisé en Core dans ce TP</span></div>
+      <p>Deux couches de permissions s'appliquent à un dossier partagé accédé par le réseau : la permission de partage, et la permission NTFS sur le dossier lui-même.</p>
+      <figure>
+        <svg viewBox="0 0 640 170" role="img" aria-label="Un client accède à une ressource réseau ; la permission de partage et la permission NTFS s'appliquent l'une après l'autre, la plus restrictive des deux l'emporte">
+          <defs>
+            <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <g font-size="11.5">
+            <rect x="10" y="55" width="110" height="46" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="65" y="74" text-anchor="middle" font-weight="600">Client</text>
+            <text x="65" y="90" text-anchor="middle" font-size="10" opacity="0.75">réseau</text>
+
+            <line x1="120" y1="78" x2="168" y2="78" stroke="currentColor" stroke-width="1.5" marker-end="url(#a2)"/>
+
+            <rect x="170" y="20" width="150" height="46" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="245" y="39" text-anchor="middle" font-weight="600">Permission de partage</text>
+            <text x="245" y="55" text-anchor="middle" font-size="10" opacity="0.75">contrôle l'accès réseau</text>
+
+            <rect x="170" y="90" width="150" height="46" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="245" y="109" text-anchor="middle" font-weight="600">Permission NTFS</text>
+            <text x="245" y="125" text-anchor="middle" font-size="10" opacity="0.75">contrôle l'accès local + réseau</text>
+
+            <line x1="320" y1="43" x2="378" y2="70" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="320" y1="113" x2="378" y2="86" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="378" y1="78" x2="418" y2="78" stroke="currentColor" stroke-width="1.5" marker-end="url(#a2)"/>
+            <text x="349" y="70" text-anchor="middle" font-size="9.5" opacity="0.75">min()</text>
+
+            <rect x="420" y="55" width="200" height="46" rx="8" class="fig-accent" fill-opacity="0.12" stroke-width="1.5"/>
+            <text x="520" y="74" text-anchor="middle" font-weight="600">Permission résultante</text>
+            <text x="520" y="90" text-anchor="middle" font-size="10" opacity="0.75">= la plus restrictive des deux</text>
+          </g>
+        </svg>
+        <figcaption>Lecture réseau : partage et NTFS se cumulent, le plus strict gagne.</figcaption>
+      </figure>
+
+      <h2><span class="h2-tag gui">Graphique</span> Créer le partage et fixer les droits</h2>
+      <ol class="gui-only">
+        <li>Créer le dossier (ex : <code>C:\PartageAdmin</code>) dans l'Explorateur</li>
+        <li>Clic droit → <strong>Propriétés</strong> → onglet <strong>Partage</strong> → <strong>Partage avancé</strong> → cocher « Partager ce dossier »</li>
+        <li>Bouton <strong>Autorisations</strong> : laisser « Utilisateurs authentifiés — Modification » (le vrai filtrage se fait côté NTFS)</li>
+        <li>Onglet <strong>Sécurité</strong> → <strong>Modifier</strong> → <strong>Ajouter</strong> → saisir le groupe GDL concerné (ex : <code>GDL_PartageAdmin_Modif</code>)</li>
+        <li>Cocher les cases de droits voulues (Modification / Lecture) puis valider</li>
+        <li>Si un groupe hérité (ex : Utilisateurs) bloque une suppression : <strong>Paramètres avancés</strong> → <strong>Désactiver l'héritage</strong> → « Convertir en autorisations explicites », puis retirer le groupe</li>
+      </ol>
+
+      <h2 class="core-only"><span class="h2-tag core">Core</span> Statut</h2>
+      <div class="callout notdone core-only"><strong>Non réalisé en Core</strong>Les partages réseau de ce TP n'existaient que côté LepalX (serveur graphique). Aucun partage NTFS n'a été créé sur VetoX/Server Core dans cette session — cette rubrique ne présente donc pas de commandes PowerShell inventées pour <code>New-SmbShare</code>. Si le besoin se présente, la commande de base serait <code>New-SmbShare -Name "Partage" -Path "C:\Partage" -FullAccess "GROUPE"</code>, à valider avant usage réel.</div>
+
+      <h2>Qui pose quoi</h2>
+      <ul>
+        <li>Le <strong>partage</strong> (onglet Partage) est souvent laissé large : « Utilisateurs authentifiés — Modification ».</li>
+        <li>Le <strong>NTFS</strong> (onglet Sécurité) porte la granularité fine, via les groupes GDL — c'est lui qui fait le vrai travail de contrôle d'accès.</li>
+        <li>Un accès local (session ouverte sur le serveur) ignore la couche partage et ne voit que le NTFS.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="sec-delegation" hidden>
+      <div class="eyebrow">05 — Ressources &amp; droits</div>
+      <h1>Délégation</h1>
+      <div class="avail-row"><span class="avail-chip yes">✓ Graphique (LepalX)</span><span class="avail-chip">✕ Non réalisé en Core dans ce TP</span></div>
+      <p>La délégation donne des droits d'administration <em>limités</em> sur une OU précise, sans créer un administrateur de domaine complet.</p>
+      <h2>Deux délégations typiques du TP</h2>
+      <table>
+        <tr><th>Qui</th><th>Où</th><th>Quoi</th></tr>
+        <tr><td>Service informatique</td><td>Racine du domaine (ou OU_Ordinateurs + OU utilisateurs)</td><td>Gestion complète des comptes et groupes</td></tr>
+        <tr><td>Comité développement durable</td><td>3 OU métiers ciblées</td><td>Réinitialisation de mot de passe uniquement</td></tr>
+      </table>
+
+      <h2><span class="h2-tag gui">Graphique</span> Assistant de délégation</h2>
+      <ol class="gui-only">
+        <li>Utilisateurs et ordinateurs Active Directory (<code>dsa.msc</code>) → clic droit sur l'OU → <strong>Délégation de contrôle</strong></li>
+        <li><strong>Suivant</strong> → <strong>Ajouter</strong> → sélectionner le groupe concerné (ex : GG_ComiteDevDurable)</li>
+        <li>Choisir une tâche courante (« Réinitialiser les mots de passe des utilisateurs et forcer le changement... ») ou <strong>Créer une tâche personnalisée à déléguer</strong> pour un contrôle plus fin</li>
+        <li>Terminer l'assistant ; vérifier ensuite dans l'onglet <strong>Sécurité</strong> avancé de l'OU (affichage des autorisations effectives) que le groupe apparaît bien</li>
+      </ol>
+
+      <h2 class="core-only"><span class="h2-tag core">Core</span> Statut</h2>
+      <div class="callout notdone core-only"><strong>Non réalisé en Core</strong>La délégation de contrôle n'a été mise en place que sur LepalX, via l'assistant graphique. Elle n'a pas été reproduite en PowerShell pur sur VetoX dans ce TP.</div>
+
+      <div class="callout"><strong>Principe du moindre privilège</strong>Toujours déléguer la tâche la plus étroite possible plutôt que d'ajouter quelqu'un aux Admins du domaine « pour aller plus vite ».</div>
+    </section>
+
+    <section class="section" id="sec-gpo" hidden>
+      <div class="eyebrow">07 — Stratégies &amp; interdomaine</div>
+      <h1>GPO</h1>
+      <div class="avail-row"><span class="avail-chip yes">✓ Graphique (LepalX + VetoX via 2ᵉ DC graphique)</span><span class="avail-chip">✕ Non réalisé en Core pur dans ce TP</span></div>
+      <p>Une GPO se lie à un site, un domaine ou une OU. Plusieurs GPO peuvent s'appliquer en cascade à un même objet ; l'ordre détermine qui gagne en cas de conflit.</p>
+      <figure>
+        <svg viewBox="0 0 560 220" role="img" aria-label="Ordre d'application des stratégies de groupe, du local au moins prioritaire jusqu'à l'OU la plus proche de l'objet, la plus prioritaire">
+          <defs>
+            <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <g font-size="11.5">
+            <rect x="180" y="10" width="200" height="34" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="280" y="32" text-anchor="middle">1 · Local (poste)</text>
+
+            <line x1="280" y1="44" x2="280" y2="62" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+            <rect x="180" y="62" width="200" height="34" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="280" y="84" text-anchor="middle">2 · Site</text>
+
+            <line x1="280" y1="96" x2="280" y2="114" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+            <rect x="180" y="114" width="200" height="34" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="280" y="136" text-anchor="middle">3 · Domaine</text>
+
+            <line x1="280" y1="148" x2="280" y2="166" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+            <rect x="180" y="166" width="200" height="34" rx="7" class="fig-accent" fill-opacity="0.14" stroke-width="1.5"/>
+            <text x="280" y="188" text-anchor="middle" font-weight="600">4 · OU (la plus proche)</text>
+          </g>
+          <text x="430" y="60" font-size="10" opacity="0.75" writing-mode="vertical-rl">priorité croissante</text>
+        </svg>
+        <figcaption>En cas de conflit, l'objet le plus proche dans l'arbre (l'OU) gagne — sauf blocage d'héritage ou GPO forcée.</figcaption>
+      </figure>
+
+      <h2>Les GPO du TP</h2>
+      <ul>
+        <li><strong>GPO_EcranVeille</strong> (LepalX) — verrouillage automatique de session</li>
+        <li><strong>GPO_BlocageRegedit</strong> (LepalX) — bloque regedit, avec exemption du groupe IT via filtrage de sécurité</li>
+        <li><strong>GPO_AdminLocal</strong> (LepalX) — ajoute le groupe IT aux administrateurs locaux (Groupes restreints)</li>
+        <li><strong>GPO_FondEcran (×2)</strong> (LepalX) — fond d'écran différent par pôle, via chemin UNC vers un partage</li>
+        <li><strong>GPO_RaccourciWeb</strong> (VetoX) — raccourci vers le site de la clinique pour les assistants, créée depuis un second contrôleur de domaine graphique</li>
+      </ul>
+
+      <h2><span class="h2-tag gui">Graphique</span> Créer et lier une GPO — gpmc.msc</h2>
+      <ol class="gui-only">
+        <li>Ouvrir <strong>gpmc.msc</strong> (Gestion de stratégie de groupe)</li>
+        <li>Clic droit sur l'OU cible → <strong>Créer un objet GPO dans ce domaine, et le lier ici...</strong></li>
+        <li>Nommer la GPO, puis clic droit dessus → <strong>Modifier</strong> pour ouvrir l'éditeur</li>
+        <li>Naviguer dans l'arborescence Ordinateur/Utilisateur → Stratégies ou Préférences selon le réglage voulu</li>
+        <li>Pour un raccourci web (préférences) : <strong>Configuration utilisateur → Préférences → Paramètres Windows → Raccourcis</strong> → Nouveau → type URL</li>
+      </ol>
+
+      <h2>Filtrage de sécurité : exempter un groupe</h2>
+      <ol class="gui-only">
+        <li>Sélectionner la GPO dans gpmc.msc → onglet <strong>Étendue</strong></li>
+        <li>Dans « Filtrage de sécurité », retirer « Utilisateurs authentifiés » et ajouter le groupe ciblé</li>
+        <li>Pour <em>exempter</em> un sous-groupe qui hériterait quand même : onglet <strong>Délégation</strong> → Avancé → ajouter le groupe → cocher <strong>Refuser</strong> sur « Appliquer la stratégie de groupe »</li>
+      </ol>
+
+      <h2 class="core-only"><span class="h2-tag core">Core</span> Statut</h2>
+      <div class="callout notdone core-only"><strong>Non réalisé en Core pur</strong>Créer une GPO de registre simple est faisable en PowerShell (<code>New-GPO</code>, <code>New-GPLink</code>, <code>Set-GPRegistryValue</code>), mais le raccourci web repose sur les Préférences de stratégie de groupe (fichiers XML dans SYSVOL + GUID d'extension), difficiles à poser sans console graphique. Dans ce TP, la solution retenue a été de gérer les GPO de VetoX depuis un second contrôleur de domaine graphique du même domaine plutôt que d'écrire ces GPO à la main en PowerShell — voir la rubrique Server Core.</div>
+
+      <h2>Diagnostiquer une GPO qui ne s'applique pas</h2>
+      <pre>gpupdate /force
+gpresult /r</pre>
+      <div class="callout"><strong>Retour d'expérience</strong>Un « N/A » persistant dans gpresult n'est pas toujours un vrai blocage : vérifier aussi bêtement que la session a été fermée/rouverte, et que le dossier ciblé a été ouvert au moins une fois côté client.</div>
+    </section>
+
+    <section class="section" id="sec-core" hidden>
+      <div class="eyebrow">08 — Stratégies &amp; interdomaine</div>
+      <h1>Server Core</h1>
+      <div class="avail-row"><span class="avail-chip yes">✓ Core / PowerShell (VetoX) — section spécifique à ce mode</span></div>
+      <p>VetoX tourne sur un Windows Server sans interface graphique : toute l'administration passe par PowerShell. Cette rubrique n'a pas d'équivalent « Graphique » car son sujet est justement l'absence de GUI.</p>
+      <h2>Premiers réflexes</h2>
+      <pre># Entrer en session PowerShell depuis l'invite cmd par défaut
+powershell
+
+# Renommer puis redémarrer
+Rename-Computer -NewName "SRV-VETO6" -Restart
+
+# IP statique + DNS
+New-NetIPAddress -InterfaceAlias "Ethernet0" -IPAddress 192.168.123.106 -PrefixLength 20 -DefaultGateway 192.168.112.1
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet0" -ServerAddresses 127.0.0.1
+
+# Rôle AD DS puis promotion en forêt
+Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+Install-ADDSForest -DomainName "Veto6.local" -DomainNetbiosName "VETO6" -InstallDns:$true `
+    -SafeModeAdministratorPassword (ConvertTo-SecureString "MotDePasse" -AsPlainText -Force) -Force:$true</pre>
+
+      <h2>Ce qui reste simple en PowerShell pur</h2>
+      <ul>
+        <li>Créer des OU, groupes, utilisateurs (<code>New-ADOrganizationalUnit</code>, <code>New-ADGroup</code>, <code>New-ADUser</code>)</li>
+        <li>Créer et lier une GPO basique (<code>New-GPO</code>, <code>New-GPLink</code>) une fois le module <code>GroupPolicy</code> chargé</li>
+        <li>Régler des valeurs de stratégie basées registre (<code>Set-GPRegistryValue</code>)</li>
+      </ul>
+      <h2>Ce qui devient pénible</h2>
+      <p>Les préférences de stratégie de groupe (raccourcis, fichiers déposés) reposent sur des fichiers XML dans SYSVOL et des GUID d'extension à déclarer — pas de cmdlet haut niveau pour ça. La solution retenue dans ce TP : ajouter un second contrôleur de domaine avec interface graphique au même domaine VetoX, pour garder SRV-VETO6 conforme au sujet (Core) tout en disposant d'une console GPMC normale.</p>
+      <pre># Sur la nouvelle VM graphique, rejoindre le domaine existant en tant que DC additionnel
+Install-ADDSDomainController -DomainName "Veto6.local" `
+    -Credential (Get-Credential VETO6\Administrateur) -InstallDns:$true `
+    -SafeModeAdministratorPassword (ConvertTo-SecureString "MotDePasse" -AsPlainText -Force) -Force:$true</pre>
+      <div class="callout"><strong>Résolution DNS croisée</strong>Pour que le DC graphique de VetoX et le DC de LepalX se voient (utile pour GPMC comme pour l'approbation), des redirecteurs conditionnels DNS ont été ajoutés des deux côtés — voir rubrique 09.</div>
+
+      <h2>Activer le Bureau à distance (RDP) sur Core</h2>
+      <pre># 1. Autoriser les connexions RDP (clé de registre)
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+    -Name "fDenyTSConnections" -Value 0
+
+# 2. Ouvrir le pare-feu pour le groupe "Bureau à distance"
+Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+# 3. (optionnel) Désactiver l'authentification au niveau réseau (NLA)
+#    si le client ne supporte pas NLA correctement
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+    -Name "UserAuthentication" -Value 0
+
+# Vérifier l'état
+(Get-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server').fDenyTSConnections
+Get-NetFirewallRule -DisplayGroup "Remote Desktop" | Select-Object DisplayName, Enabled</pre>
+      <div class="callout"><strong>Pièges rencontrés</strong>
+        <ul>
+          <li><code>Set-ItemProperty</code> sans <code>-Name</code> renvoie une erreur de paramètre manquant — les trois paramètres <code>-Path</code>, <code>-Name</code> et <code>-Value</code> sont obligatoires.</li>
+          <li><code>Enable-NetFirewallRule -DisplayGroup "Remote Desktop"</code> échoue avec « groupe introuvable » si le nom du groupe n'est pas exact en anglais (pas de traduction) ou si le rôle Bureau à distance n'a jamais été touché : vérifier d'abord avec <code>Get-NetFirewallRule -DisplayGroup "Remote Desktop"</code>.</li>
+          <li>Erreur côté client <em>« correction d'oracle de chiffrement CredSSP »</em> : c'est un décalage de version CredSSP entre le client (patché) et le serveur (non patché). Sur le serveur Core, forcer temporairement le niveau de compatibilité :
+            <pre>Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\CredSSP\Parameters' `
+    -Name "AllowEncryptionOracle" -Value 2 -Type DWord -Force</pre>
+            (2 = Vulnerable ; à revenir à 0 ou 1 une fois la mise à jour appliquée). Un redémarrage est parfois nécessaire pour que la clé soit prise en compte.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="sec-trust" hidden>
+      <div class="eyebrow">09 — Stratégies &amp; interdomaine</div>
+      <h1>Relation d'approbation</h1>
+      <div class="avail-row"><span class="avail-chip yes">✓ Graphique (domain.msc sur le DC graphique de VetoX)</span><span class="avail-chip">✕ Non réalisé en Core pur dans ce TP</span></div>
+      <p>La confiance entre LepalX.local et VetoX.local permet à un compte d'un domaine d'accéder à des ressources de l'autre, sans dupliquer les comptes.</p>
+      <figure>
+        <svg viewBox="0 0 560 150" role="img" aria-label="Approbation externe bidirectionnelle entre Lepal6.local et Veto6.local">
+          <defs>
+            <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <rect x="20" y="45" width="190" height="60" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="115" y="72" text-anchor="middle" font-weight="600" font-size="12">Lepal6.local</text>
+          <text x="115" y="90" text-anchor="middle" font-size="10" opacity="0.75">SRV-W2016-CELARIER</text>
+
+          <rect x="350" y="45" width="190" height="60" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="445" y="72" text-anchor="middle" font-weight="600" font-size="12">Veto6.local</text>
+          <text x="445" y="90" text-anchor="middle" font-size="10" opacity="0.75">SRV-VETO6-GUI</text>
+
+          <line x1="212" y1="65" x2="348" y2="65" stroke="currentColor" stroke-width="1.5" marker-end="url(#a4)"/>
+          <line x1="348" y1="85" x2="212" y2="85" stroke="currentColor" stroke-width="1.5" marker-end="url(#a4)"/>
+          <text x="280" y="55" text-anchor="middle" font-size="9.5" opacity="0.75">approuve</text>
+          <text x="280" y="105" text-anchor="middle" font-size="9.5" opacity="0.75">approuve</text>
+
+          <text x="280" y="130" text-anchor="middle" font-size="10.5">Approbation externe · non transitive · bidirectionnelle</text>
+        </svg>
+        <figcaption>Chaque sens (sortant / entrant) doit apparaître des deux côtés pour que la confiance soit complète.</figcaption>
+      </figure>
+
+      <h2>Prérequis technique : la résolution DNS (fait en PowerShell des deux côtés)</h2>
+      <pre># Sur SRV-W2016-CELARIER
+Add-DnsServerConditionalForwarderZone -Name "veto6.local" -MasterServers 192.168.123.106
+
+# Sur le DC de VetoX
+Add-DnsServerConditionalForwarderZone -Name "lepal6.local" -MasterServers 192.168.123.6</pre>
+
+      <h2><span class="h2-tag gui">Graphique</span> Créer l'approbation — domain.msc</h2>
+      <ol class="gui-only">
+        <li>Ouvrir <code>domain.msc</code> (Domaines et approbations Active Directory) sur un DC graphique</li>
+        <li>Clic droit sur le domaine → <strong>Propriétés</strong> → onglet <strong>Approbations</strong> → <strong>Nouvelle approbation</strong></li>
+        <li>Nom du domaine distant à approuver (ex : <code>Veto6.local</code>)</li>
+        <li>Type : <strong>Externe</strong> · Sens : <strong>Bidirectionnelle</strong></li>
+        <li>Fournir les identifiants admin de l'autre domaine si demandé ; à l'étape « confirmer l'approbation entrante », <strong>Non</strong> suffit (elle a déjà été créée par l'assistant)</li>
+        <li><strong>Important</strong> : vérifier ensuite l'onglet Approbations sur <em>les deux</em> domaines. Si un sens n'apparaît que d'un côté, relancer l'assistant depuis le domaine manquant en choisissant « Cette approbation uniquement »</li>
+        <li>Si la confiance ne semble pas prise en compte côté client : redémarrer le service <code>Netlogon</code></li>
+      </ol>
+
+      <h2 class="core-only"><span class="h2-tag core">Core</span> Statut</h2>
+      <div class="callout notdone core-only"><strong>Non réalisé en Core pur</strong>Une relation d'approbation peut en théorie se créer en ligne de commande avec <code>netdom trust</code>, mais dans ce TP elle a été montée entièrement via l'assistant graphique <code>domain.msc</code>, sur un second contrôleur de domaine VetoX ajouté spécifiquement pour disposer d'une interface graphique (voir rubrique Server Core).</div>
+
+      <h2>Vérifier que ça fonctionne</h2>
+      <p>Sur les permissions NTFS d'un partage LepalX, ouvrir Ajouter → Emplacements : le domaine <code>Veto6.local</code> doit apparaître, et un compte comme <code>avial</code> doit être trouvable et ajoutable.</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var order = ["overview","ou","agdlp","users","shares","delegation","gpo","core","trust"];
+  var rail = document.getElementById('rail');
+  var buttons = Array.prototype.slice.call(rail.querySelectorAll('.rail-btn'));
+  var sections = {};
+  order.forEach(function(id){ sections[id] = document.getElementById('sec-' + id); });
+
+  function show(id){
+    if (order.indexOf(id) === -1) id = order[0];
+    order.forEach(function(k){ sections[k].hidden = (k !== id); });
+    buttons.forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-id') === id); });
+    document.getElementById('content').scrollTop = 0;
+    rail.classList.remove('open');
+    try { history.replaceState(null, '', '#' + id); } catch (e) {}
+  }
+
+  buttons.forEach(function(b){
+    b.addEventListener('click', function(){ show(b.getAttribute('data-id')); });
+  });
+
+  document.getElementById('tocToggle').addEventListener('click', function(){
+    rail.classList.toggle('open');
+  });
+
+  // GUI / Core mode switch
+  var btnGui = document.getElementById('btnGui');
+  var btnCore = document.getElementById('btnCore');
+  function setMode(mode){
+    document.body.setAttribute('data-mode', mode);
+    btnGui.classList.toggle('active', mode === 'gui');
+    btnCore.classList.toggle('active', mode === 'core');
+    try { localStorage.setItem('ad-gpo-guide-mode', mode); } catch (e) {}
+  }
+  btnGui.addEventListener('click', function(){ setMode('gui'); });
+  btnCore.addEventListener('click', function(){ setMode('core'); });
+
+  var savedMode = 'gui';
+  try { savedMode = localStorage.getItem('ad-gpo-guide-mode') || 'gui'; } catch (e) {}
+  setMode(savedMode);
+
+  var start = (location.hash || '').replace('#', '');
+  show(start || order[0]);
+})();
+</script>
