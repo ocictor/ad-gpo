@@ -449,6 +449,46 @@ foreach ($u in $Users) {
 }</pre>
       <div class="callout"><strong>Piège rencontré</strong>Deux employés homonymes (même initiale + même nom, ex. Benoît et Bertrand SOUBAGNE) génèrent le même identifiant. Toujours vérifier les collisions avant de lancer un lot, ou rattraper à la main après coup avec un <code>-SamAccountName</code> différent.</div>
 
+      <h2>Création rapide : une simple liste « Prénom Nom »</h2>
+      <p>Version express, sans OU ni groupes à préparer : colle ta liste (un nom par ligne) et tous les comptes sont créés d'un coup. Par défaut ils vont dans le conteneur <code>Users</code> du domaine ; ils ne seront donc pas rangés dans la bonne OU, mais ils seront utilisables tout de suite. Fonctionne à l'identique en graphique et sur Server Core (ouvrir PowerShell, puis coller).</p>
+      <pre>Import-Module ActiveDirectory
+$Dom      = Get-ADDomain
+$Domain   = $Dom.DNSRoot
+$Path     = "CN=Users,$($Dom.DistinguishedName)"   # ou "OU=OU_Assistants,$($Dom.DistinguishedName)"
+$Groupe   = ""                                      # ex : "GG_Assistants" (laisser vide = aucun groupe)
+$Password = Read-Host -AsSecureString "Mot de passe initial des comptes"
+
+$Texte = @"
+Aurelie VIAL
+Coralie BECOUZE
+Benoit SOUBAGNE
+Bertrand SOUBAGNE
+"@
+# Variante : $Texte = Get-Content C:\liste.txt -Raw
+
+foreach ($ligne in ($Texte -split "`r?`n" | Where-Object { $_.Trim() })) {
+    $prenom, $nom = $ligne.Trim() -split '\s+', 2
+
+    # identifiant = initiale + nom, sans accents ni espaces (20 caractères max)
+    $base = (($prenom.Substring(0,1) + $nom).Normalize('FormD') -replace '\p{Mn}', '').ToLower() -replace '[^a-z]', ''
+    if ($base.Length -gt 18) { $base = $base.Substring(0,18) }
+
+    # collision : bsoubagne, puis bsoubagne2, bsoubagne3...
+    $sam = $base; $i = 2
+    while (Get-ADUser -Filter "SamAccountName -eq '$sam'") { $sam = "$base$i"; $i++ }
+
+    try {
+        New-ADUser -Name "$prenom $nom" -GivenName $prenom -Surname $nom `
+            -SamAccountName $sam -UserPrincipalName "$sam@$Domain" -Path $Path `
+            -AccountPassword $Password -Enabled $true -ChangePasswordAtLogon $false
+        if ($Groupe) { Add-ADGroupMember -Identity $Groupe -Members $sam }
+        Write-Host "Créé : $prenom $nom  ->  $sam" -ForegroundColor Green
+    } catch {
+        Write-Warning "Échec pour $prenom $nom : $($_.Exception.Message)"
+    }
+}</pre>
+      <div class="callout"><strong>À savoir</strong>Le mot de passe saisi doit respecter la politique du domaine (longueur, complexité), sinon chaque création échoue avec une erreur de mot de passe. Les collisions d'identifiant sont réglées automatiquement par un numéro. Pour déplacer ensuite des comptes dans la bonne OU : <code>Move-ADObject -Identity "CN=Aurelie VIAL,CN=Users,DC=..." -TargetPath "OU=OU_Assistants,DC=..."</code>, ou glisser-déposer dans <code>dsa.msc</code>.</div>
+
       <h2>Restriction horaire (logonHours) — assistants vétérinaires</h2>
       <p>Pour les assistants, les horaires de connexion sont limités aux plages d'ouverture. L'attribut est un tableau de <strong>21 octets</strong> (168 bits, un par heure de la semaine).</p>
       <pre>$heuresAutorisees = @{
